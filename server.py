@@ -434,6 +434,9 @@ if __name__ == "__main__":
     print(f"LiveKit URL: {livekit_url}")
     print(f"API Key: {os.getenv('LIVEKIT_API_KEY', 'NOT SET')[:20]}...")
     print("=" * 60)
+
+    if len(sys.argv) == 1:
+        sys.argv.append('start')
     
     cli.run_app(
         WorkerOptions(
