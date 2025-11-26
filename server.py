@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from dotenv import load_dotenv
 load_dotenv() 
 from datetime import datetime, timezone
@@ -448,6 +449,10 @@ async def entrypoint(ctx: JobContext):
         raise
 
 if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        sys.argv.append('start')
+        print("✅ Auto-added 'start' command")
+
     livekit_url = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
     
     print("=" * 60)
