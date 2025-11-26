@@ -6,6 +6,7 @@ load_dotenv()
 from datetime import datetime, timezone
 import json
 import threading
+import sys
 
 logging.getLogger('pymongo').setLevel(logging.WARNING)
 logging.getLogger('pymongo.topology').setLevel(logging.WARNING)
