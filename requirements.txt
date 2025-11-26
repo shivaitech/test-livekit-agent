@@ -17,3 +17,4 @@ openai
 
 # Other
 aiohttp
+boto3
