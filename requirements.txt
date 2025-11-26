@@ -1,0 +1,19 @@
+# LiveKit dependencies
+livekit
+livekit-agents
+livekit-plugins-openai
+
+# Web server dependencies
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# Firebase/Database
+firebase-admin
+pymongo
+
+# OpenAI
+openai
+
+# Other
+aiohttp

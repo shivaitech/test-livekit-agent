@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveKit Voice Assistant - Realtime API</title>
+    <script src="https://unpkg.com/@livekit/components-core@0.11.5/dist/livekit-components-core.umd.js"></script>
+    <script src="https://unpkg.com/livekit-client@2.5.8/dist/livekit-client.umd.js"></script>
+    <style>
+        /* ... (keep all your existing styles) ... */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #startBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        #startBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #endBtn {
+            background: #f44336;
+            color: white;
+            display: none;
+        }
+
+        #endBtn:hover {
+            background: #d32f2f;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(244, 67, 54, 0.3);
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status.connecting {
+            background: #fff3e0;
+            color: #f57c00;
+            display: block;
+        }
+
+        .status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+
+        .audio-visualizer {
+            display: none;
+            margin: 20px auto;
+            text-align: center;
+        }
+
+        .audio-visualizer.active {
+            display: block;
+        }
+
+        .wave {
+            display: inline-block;
+            width: 4px;
+            height: 20px;
+            background: #667eea;
+            margin: 0 2px;
+            border-radius: 2px;
+            animation: wave 1s ease-in-out infinite;
+        }
+
+        .wave:nth-child(2) { animation-delay: 0.1s; }
+        .wave:nth-child(3) { animation-delay: 0.2s; }
+        .wave:nth-child(4) { animation-delay: 0.3s; }
+        .wave:nth-child(5) { animation-delay: 0.4s; }
+
+        @keyframes wave {
+            0%, 100% { height: 20px; }
+            50% { height: 40px; }
+        }
+
+        /* Latency Monitor Styles */
+        .latency-monitor {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .latency-monitor.active {
+            display: block;
+        }
+
+        .latency-header {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .latency-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .latency-metric {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .latency-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .latency-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .latency-value.good {
+            color: #2e7d32;
+        }
+
+        .latency-value.medium {
+            color: #f57c00;
+        }
+
+        .latency-value.bad {
+            color: #c62828;
+        }
+
+        .latency-chart {
+            margin-top: 15px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            height: 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .latency-bar {
+            position: absolute;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+            transition: height 0.3s ease;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .latency-stats {
+            margin-top: 12px;
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+
+        .transcript-box {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .transcript-box.active {
+            display: block;
+        }
+
+        .transcript-item {
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .transcript-item.user {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .transcript-item.agent {
+            background: #f3e5f5;
+            color: #6a1b9a;
+        }
+
+        .transcript-label {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .noise-indicator {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #2e7d32;
+            text-align: center;
+        }
+
+        .noise-indicator.active {
+            display: block;
+        }
+
+        .container::-webkit-scrollbar,
+        .transcript-box::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .container::-webkit-scrollbar-track,
+        .transcript-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        .container::-webkit-scrollbar-thumb,
+        .transcript-box::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+
+        .container::-webkit-scrollbar-thumb:hover,
+        .transcript-box::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Voice Assistant</h1>
+        <p class="subtitle">
+            OpenAI Realtime API + LiveKit
+            <span class="badge">⚡ Ultra Low Latency</span>
+        </p>
+
+        <div class="form-group">
+            <label for="agentId">Agent ID</label>
+            <input type="text" id="agentId" placeholder="Enter agent ID (optional)">
+        </div>
+
+        <div class="form-group">
+            <label for="language">Language</label>
+            <select id="language">
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="hi">Hindi</option>
+                <option value="pt">Portuguese</option>
+                <option value="zh">Chinese</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="ar">Arabic</option>
+                <option value="ru">Russian</option>
+                <option value="it">Italian</option>
+                <option value="nl">Dutch</option>
+                <option value="pl">Polish</option>
+                <option value="tr">Turkish</option>
+            </select>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="noiseSuppression" checked>
+            <label for="noiseSuppression">🎧 Enable Noise Cancellation</label>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="echoCancellation" checked>
+            <label for="echoCancellation">🔊 Enable Echo Cancellation</label>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="autoGainControl" checked>
+            <label for="autoGainControl">📊 Enable Auto Gain Control</label>
+        </div>
+
+        <button id="startBtn">Start Call</button>
+        <button id="endBtn">End Call</button>
+
+        <div class="noise-indicator" id="noiseIndicator">
+            🎙️ Audio processing active
+        </div>
+
+        <div class="audio-visualizer">
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <!-- Latency Monitor -->
+        <div id="latencyMonitor" class="latency-monitor">
+            <div class="latency-header">
+                ⚡ Response Latency
+            </div>
+            <div class="latency-grid">
+                <div class="latency-metric">
+                    <div class="latency-label">Current</div>
+                    <div id="currentLatency" class="latency-value">-- ms</div>
+                </div>
+                <div class="latency-metric">
+                    <div class="latency-label">Average</div>
+                    <div id="avgLatency" class="latency-value">-- ms</div>
+                </div>
+                <div class="latency-metric">
+                    <div class="latency-label">Best</div>
+                    <div id="minLatency" class="latency-value">-- ms</div>
+                </div>
+                <div class="latency-metric">
+                    <div class="latency-label">Worst</div>
+                    <div id="maxLatency" class="latency-value">-- ms</div>
+                </div>
+            </div>
+            <div class="latency-chart" id="latencyChart"></div>
+            <div class="latency-stats">
+                <span id="totalExchanges">0 exchanges</span> • 
+                Target: <500ms excellent, 500-800ms good, >800ms needs improvement
+            </div>
+        </div>
+
+        <!-- Transcript Box -->
+        <div id="transcriptBox" class="transcript-box">
+            <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">📝 Conversation Log</h3>
+            <div id="transcriptContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let room = null;
+        let isConnected = false;
+        let localAudioTrack = null;
+        let remoteAudioTrack = null;
+
+        const startBtn = document.getElementById('startBtn');
+        const endBtn = document.getElementById('endBtn');
+        const statusDiv = document.getElementById('status');
+        const agentIdInput = document.getElementById('agentId');
+        const languageSelect = document.getElementById('language');
+        const visualizer = document.querySelector('.audio-visualizer');
+        const transcriptBox = document.getElementById('transcriptBox');
+        const transcriptContent = document.getElementById('transcriptContent');
+        const noiseIndicator = document.getElementById('noiseIndicator');
+        const noiseSuppressionCheckbox = document.getElementById('noiseSuppression');
+        const echoCancellationCheckbox = document.getElementById('echoCancellation');
+        const autoGainControlCheckbox = document.getElementById('autoGainControl');
+
+        // ✅ FIXED: Enhanced latency tracking using audio events
+        let latencyMetrics = {
+            userSpeechStartTime: null,
+            userSpeechEndTime: null,
+            agentResponseStartTime: null,
+            measurements: [],
+            maxSamples: 30,
+            isSpeaking: false,
+            isAgentSpeaking: false
+        };
+
+        const latencyMonitor = document.getElementById('latencyMonitor');
+        const currentLatencyEl = document.getElementById('currentLatency');
+        const avgLatencyEl = document.getElementById('avgLatency');
+        const minLatencyEl = document.getElementById('minLatency');
+        const maxLatencyEl = document.getElementById('maxLatency');
+        const totalExchangesEl = document.getElementById('totalExchanges');
+        const latencyChart = document.getElementById('latencyChart');
+
+        function setStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function getLatencyClass(ms) {
+            if (ms < 500) return 'good';
+            if (ms < 800) return 'medium';
+            return 'bad';
+        }
+
+        function updateLatencyDisplay() {
+            if (latencyMetrics.measurements.length === 0) return;
+
+            const current = latencyMetrics.measurements[latencyMetrics.measurements.length - 1];
+            const avg = latencyMetrics.measurements.reduce((a, b) => a + b, 0) / latencyMetrics.measurements.length;
+            const min = Math.min(...latencyMetrics.measurements);
+            const max = Math.max(...latencyMetrics.measurements);
+
+            currentLatencyEl.textContent = `${Math.round(current)} ms`;
+            currentLatencyEl.className = `latency-value ${getLatencyClass(current)}`;
+
+            avgLatencyEl.textContent = `${Math.round(avg)} ms`;
+            avgLatencyEl.className = `latency-value ${getLatencyClass(avg)}`;
+
+            minLatencyEl.textContent = `${Math.round(min)} ms`;
+            minLatencyEl.className = `latency-value ${getLatencyClass(min)}`;
+
+            maxLatencyEl.textContent = `${Math.round(max)} ms`;
+            maxLatencyEl.className = `latency-value ${getLatencyClass(max)}`;
+
+            totalExchangesEl.textContent = `${latencyMetrics.measurements.length} exchanges`;
+
+            updateLatencyChart();
+        }
+
+        function updateLatencyChart() {
+            latencyChart.innerHTML = '';
+            const measurements = latencyMetrics.measurements.slice(-30);
+            if (measurements.length === 0) return;
+            
+            const maxValue = Math.max(...measurements, 1000);
+            const width = latencyChart.clientWidth;
+            const barWidth = Math.max(2, width / measurements.length - 2);
+
+            measurements.forEach((value, index) => {
+                const bar = document.createElement('div');
+                bar.className = 'latency-bar';
+                bar.style.left = `${(index / measurements.length) * 100}%`;
+                bar.style.height = `${(value / maxValue) * 80}px`;
+                bar.style.width = `${barWidth}px`;
+                
+                const colorClass = getLatencyClass(value);
+                if (colorClass === 'good') bar.style.background = '#4caf50';
+                else if (colorClass === 'medium') bar.style.background = '#ff9800';
+                else bar.style.background = '#f44336';
+
+                latencyChart.appendChild(bar);
+            });
+        }
+
+        // ✅ FIXED: Track when user stops speaking (using audio level monitoring)
+        function monitorLocalAudioLevel(track) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const mediaStream = new MediaStream([track.mediaStreamTrack]);
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            const SPEECH_THRESHOLD = 30; // Adjust based on your environment
+            const SILENCE_DURATION = 800; // 800ms of silence = end of speech
+            let silenceStart = null;
+            
+            function checkAudioLevel() {
+                if (!isConnected) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                
+                if (average > SPEECH_THRESHOLD) {
+                    // User is speaking
+                    if (!latencyMetrics.isSpeaking) {
+                        latencyMetrics.isSpeaking = true;
+                        latencyMetrics.userSpeechStartTime = performance.now();
+                        console.log('👤 User started speaking');
+                        addLog('You started speaking', 'user');
+                    }
+                    silenceStart = null;
+                } else {
+                    // Silence detected
+                    if (latencyMetrics.isSpeaking) {
+                        if (!silenceStart) {
+                            silenceStart = performance.now();
+                        } else if (performance.now() - silenceStart > SILENCE_DURATION) {
+                            // User stopped speaking
+                            latencyMetrics.isSpeaking = false;
+                            latencyMetrics.userSpeechEndTime = performance.now();
+                            console.log('👤 User stopped speaking');
+                            addLog('You finished speaking', 'user');
+                            silenceStart = null;
+                        }
+                    }
+                }
+                
+                requestAnimationFrame(checkAudioLevel);
+            }
+            
+            checkAudioLevel();
+        }
+
+        // ✅ FIXED: Track when agent starts responding
+        function monitorRemoteAudioLevel(track) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const mediaStream = new MediaStream([track.mediaStreamTrack]);
+            const source = audioContext.createMediaStreamSource(mediaStream);
+            
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            const SPEECH_THRESHOLD = 20;
+            
+            function checkAudioLevel() {
+                if (!isConnected) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                
+                if (average > SPEECH_THRESHOLD && !latencyMetrics.isAgentSpeaking) {
+                    // Agent started responding
+                    latencyMetrics.isAgentSpeaking = true;
+                    
+                    if (latencyMetrics.userSpeechEndTime) {
+                        latencyMetrics.agentResponseStartTime = performance.now();
+                        const latency = latencyMetrics.agentResponseStartTime - latencyMetrics.userSpeechEndTime;
+                        
+                        latencyMetrics.measurements.push(latency);
+                        if (latencyMetrics.measurements.length > latencyMetrics.maxSamples) {
+                            latencyMetrics.measurements.shift();
+                        }
+                        
+                        console.log(`⚡ Response latency: ${Math.round(latency)}ms`);
+                        addLog(`Agent responded (${Math.round(latency)}ms)`, 'agent');
+                        updateLatencyDisplay();
+                        
+                        latencyMetrics.userSpeechEndTime = null;
+                    }
+                } else if (average <= SPEECH_THRESHOLD && latencyMetrics.isAgentSpeaking) {
+                    latencyMetrics.isAgentSpeaking = false;
+                }
+                
+                requestAnimationFrame(checkAudioLevel);
+            }
+            
+            checkAudioLevel();
+        }
+
+        function addLog(text, source) {
+            const item = document.createElement('div');
+            item.className = `transcript-item ${source}`;
+            const time = new Date().toLocaleTimeString();
+            item.innerHTML = `
+                <div class="transcript-label">${source === 'user' ? '👤 You' : '🤖 Agent'} - ${time}</div>
+                <div>${text}</div>
+            `;
+            transcriptContent.appendChild(item);
+            transcriptBox.scrollTop = transcriptBox.scrollHeight;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                startBtn.disabled = true;
+                setStatus('Connecting...', 'connecting');
+
+                const agentId = agentIdInput.value.trim() || 'test-agent';
+                const language = languageSelect.value;
+                const callId = `call_${Date.now()}`;
+
+                const deviceType = /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+                
+                const response = await fetch('http://localhost:3000/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_id: agentId,
+                        language: language,
+                        call_id: callId,
+                        device: deviceType,
+                        user_agent: navigator.userAgent
+                    })
+                });
+
+                const data = await response.json();
+                
+                room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                    audioCaptureDefaults: {
+                        noiseSuppression: noiseSuppressionCheckbox.checked,
+                        echoCancellation: echoCancellationCheckbox.checked,
+                        autoGainControl: autoGainControlCheckbox.checked,
+                    }
+                });
+
+                // ✅ Track remote audio (agent speaking)
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === LivekitClient.Track.Kind.Audio) {
+                        const audioElement = track.attach();
+                        document.body.appendChild(audioElement);
+                        audioElement.play();
+                        
+                        remoteAudioTrack = track;
+                        monitorRemoteAudioLevel(track);
+                        console.log('🔊 Agent audio track received - monitoring started');
+                    }
+                });
+
+                room.on(LivekitClient.RoomEvent.Connected, async () => {
+                    console.log('✅ Connected to room');
+                    setStatus('✅ Connected - Speak now!', 'connected');
+                    visualizer.classList.add('active');
+                    transcriptBox.classList.add('active');
+                    latencyMonitor.classList.add('active');
+                    
+                    if (noiseSuppressionCheckbox.checked) {
+                        noiseIndicator.classList.add('active');
+                    }
+                    
+                    startBtn.style.display = 'none';
+                    endBtn.style.display = 'block';
+                    isConnected = true;
+                });
+
+                room.on(LivekitClient.RoomEvent.Disconnected, () => {
+                    console.log('Disconnected from room');
+                    cleanup();
+                });
+
+                room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+                    try {
+                        const data = JSON.parse(new TextDecoder().decode(payload));
+                        console.log('📨 Data received:', data);
+                    } catch (e) {
+                        console.error('Error parsing data:', e);
+                    }
+                });
+
+                await room.connect(data.url, data.token);
+                console.log('🔗 Room connected successfully');
+
+                // ✅ Enable microphone and monitor local audio
+                await room.localParticipant.setMicrophoneEnabled(true, {
+                    noiseSuppression: noiseSuppressionCheckbox.checked,
+                    echoCancellation: echoCancellationCheckbox.checked,
+                    autoGainControl: autoGainControlCheckbox.checked,
+                    channelCount: 1,
+                    sampleRate: 48000,
+                    sampleSize: 16,
+                });
+
+                // Get local audio track and start monitoring
+                const audioTracks = Array.from(room.localParticipant.audioTrackPublications.values());
+                if (audioTracks.length > 0) {
+                    localAudioTrack = audioTracks[0].track;
+                    monitorLocalAudioLevel(localAudioTrack);
+                    console.log('🎤 Microphone monitoring started');
+                }
+
+                console.log('🎤 Microphone enabled with settings:', {
+                    noiseSuppression: noiseSuppressionCheckbox.checked,
+                    echoCancellation: echoCancellationCheckbox.checked,
+                    autoGainControl: autoGainControlCheckbox.checked
+                });
+
+            } catch (error) {
+                console.error('❌ Connection error:', error);
+                setStatus(`❌ Error: ${error.message}`, 'error');
+                startBtn.disabled = false;
+            }
+        });
+
+        endBtn.addEventListener('click', async () => {
+            if (room) {
+                await room.disconnect();
+            }
+            cleanup();
+        });
+
+        function cleanup() {
+            if (room) {
+                room.disconnect();
+                room = null;
+            }
+            
+            isConnected = false;
+            localAudioTrack = null;
+            remoteAudioTrack = null;
+            
+            startBtn.disabled = false;
+            startBtn.style.display = 'block';
+            endBtn.style.display = 'none';
+            visualizer.classList.remove('active');
+            noiseIndicator.classList.remove('active');
+            
+            setStatus('Call ended', 'error');
+            
+            // Keep latency data visible after call ends
+            // Don't reset: latencyMonitor stays active to show results
+            
+            document.querySelectorAll('audio').forEach(el => el.remove());
+            
+            console.log('📊 Final latency stats:', {
+                measurements: latencyMetrics.measurements.length,
+                avg: latencyMetrics.measurements.length > 0 
+                    ? Math.round(latencyMetrics.measurements.reduce((a, b) => a + b, 0) / latencyMetrics.measurements.length)
+                    : 0
+            });
+        }
+
+        window.addEventListener('beforeunload', cleanup);
+    </script>
+</body>
+</html>
