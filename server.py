@@ -6,7 +6,6 @@ load_dotenv()
 from datetime import datetime, timezone
 import json
 import threading
-import sys
 
 logging.getLogger('pymongo').setLevel(logging.WARNING)
 logging.getLogger('pymongo.topology').setLevel(logging.WARNING)
@@ -298,6 +297,9 @@ async def load_knowledge_base_async(agent_id):
     return ""
 
 async def entrypoint(ctx: JobContext):
+    session = None  # Track session for cleanup
+    assistant = None  # Track assistant for cleanup
+    
     try:
         logger.info(f"🎙️ Room: {ctx.room.name}")
         
@@ -366,13 +368,13 @@ async def entrypoint(ctx: JobContext):
         
         logger.info("🔧 Initializing OpenAI Realtime API...")
         
-        # ✅ CORRECT: Create assistant with instructions first
+        # ✅ FIX: Create fresh assistant instance
         assistant = StreamingVoiceAssistant(
             instructions=instructions_text, 
             session_id=session_id
         )
         
-        # ✅ Create session with RealtimeModel
+        # ✅ FIX: Create NEW session with fresh RealtimeModel (critical for mobile)
         session = AgentSession(
             llm=openai.realtime.RealtimeModel(
                 voice=voice,
@@ -390,17 +392,39 @@ async def entrypoint(ctx: JobContext):
         
         assistant.session_ref = session
         
-        # ✅ Start session with agent (instructions passed via agent)
+        # ✅ FIX: Add explicit session cleanup on disconnect
+        async def cleanup_session():
+            logger.info("🧹 Cleaning up OpenAI session...")
+            assistant.is_active = False
+            if assistant.inactivity_task:
+                assistant.inactivity_task.cancel()
+                try:
+                    await assistant.inactivity_task
+                except:
+                    pass
+            
+            # ✅ CRITICAL: Properly close the OpenAI session
+            if session:
+                try:
+                    await session.aclose()  # Close OpenAI WebSocket connection
+                    logger.info("✅ OpenAI session closed")
+                except Exception as e:
+                    logger.warning(f"Session close warning: {e}")
+            
+            await assistant.finalize_call()
+        
+        ctx.add_shutdown_callback(cleanup_session)
+        
+        # Start session
         await session.start(room=ctx.room, agent=assistant)
         
         logger.info("✅ Realtime API Initialized")
         
         await asyncio.sleep(0.3)
         
-        # ✅ Generate greeting
+        # Generate greeting
         if agent_config and agent_config.get('greeting_message'):
             greeting = agent_config.get('greeting_message')
-            # Use the instructions parameter in generate_reply
             await session.generate_reply(instructions=f"Say: {greeting}")
         else:
             await session.generate_reply(instructions="Give a warm, brief greeting.")
@@ -409,24 +433,21 @@ async def entrypoint(ctx: JobContext):
         
         logger.info("🎉 Ready - REALTIME API ENABLED!")
         
-        async def on_shutdown():
-            assistant.is_active = False
-            if assistant.inactivity_task:
-                assistant.inactivity_task.cancel()
-                try:
-                    await assistant.inactivity_task
-                except:
-                    pass
-            await assistant.finalize_call()
-        
-        ctx.add_shutdown_callback(on_shutdown)
-        
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)
+        
+        # ✅ FIX: Cleanup on error
+        if session:
+            try:
+                await session.aclose()
+            except:
+                pass
+        if assistant:
+            assistant.is_active = False
+        
         raise
 
 if __name__ == "__main__":
-    # Get LiveKit URL from environment
     livekit_url = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
     
     print("=" * 60)
@@ -435,13 +456,10 @@ if __name__ == "__main__":
     print(f"LiveKit URL: {livekit_url}")
     print(f"API Key: {os.getenv('LIVEKIT_API_KEY', 'NOT SET')[:20]}...")
     print("=" * 60)
-
-    if len(sys.argv) == 1:
-        sys.argv.append('start')
     
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
-            ws_url=livekit_url  # ✅ This is the critical fix
+            ws_url=livekit_url
         )
     )
